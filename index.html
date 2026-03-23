@@ -4,428 +4,177 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#f8fafc">
 <title>LAV-TEC Dashboard</title>
-<link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;LAV-TEC&quot;,&quot;short_name&quot;:&quot;LAV-TEC&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%23f8fafc&quot;}">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  * { -webkit-tap-highlight-color: transparent; }
-  body { margin: 0; font-family: 'DM Sans', 'Segoe UI', sans-serif; }
-  ::-webkit-scrollbar { display: none; }
-  /* PWA safe area */
-  @supports (padding-top: env(safe-area-inset-top)) {
-    body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
-  }
+*{-webkit-tap-highlight-color:transparent}body{margin:0;font-family:'DM Sans','Segoe UI',sans-serif}::-webkit-scrollbar{display:none}
 </style>
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel">
-const { useState, useMemo, useEffect } = React;
-const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ComposedChart, Area, Line } = Recharts;
+<script type="module">
+import htm from 'https://esm.sh/htm@3.1.1';
+const html=htm.bind(React.createElement);
+const{useState,useMemo,useEffect}=React;
+const{BarChart,Bar,XAxis,YAxis,Tooltip,ResponsiveContainer,ComposedChart,Area,Line}=Recharts;
 
-/*
- * ══════════════════════════════════════════════════════
- * DATA SOURCE
- * ══════════════════════════════════════════════════════
- * POUR BRANCHER LES VRAIES DONNÉES :
- * 1. Remplacer generateData() par un fetch vers dashboard-data.json
- * 2. Le JSON doit avoir la même structure : { days: [...], sources: [...], sourceColors: {...} }
- * 3. n8n génère ce JSON à chaque import
- * ══════════════════════════════════════════════════════
- */
+// ─── DATA ───────────────────────────────────────────
+function generateData(){
+const sources=["Lavage Auto","Boutique","Distrib. Jetons","Laverie CB","Distributeur"];
+const sourceColors={"Lavage Auto":"#0ea5e9","Boutique":"#22c55e","Distrib. Jetons":"#f59e0b","Laverie CB":"#8b5cf6","Distributeur":"#ef4444"};
+const mC=["Ensoleillé","Nuageux","Pluie","Pluie forte","Couvert","Orageux","Brouillard"];
+const mI={"Ensoleillé":"☀️","Nuageux":"⛅","Pluie":"🌧️","Pluie forte":"⛈️","Couvert":"☁️","Orageux":"⛈️","Brouillard":"🌫️"};
+const days=[];const now=new Date(2026,2,23);
+for(let i=729;i>=0;i--){const d=new Date(now);d.setDate(d.getDate()-i);const dow=d.getDay(),mo=d.getMonth(),yr=d.getFullYear();
+const yg=yr===2026?1.08:yr===2025?1.0:0.93;const sf=mo>=4&&mo<=8?1.3:mo>=10||mo<=1?0.7:1.0;const wf=dow===0||dow===6?1.4:1.0;
+const isW=mo>=10||mo<=2,isS=mo>=5&&mo<=8;
+const mi=isW?[2,3,4,4,5,6][Math.floor(Math.random()*6)]:isS?[0,0,0,1,1,2][Math.floor(Math.random()*6)]:Math.floor(Math.random()*mC.length);
+const met=mC[mi];const rf=met.includes("Pluie")||met==="Orageux"?0.4:met==="Couvert"?0.8:1.0;const lb=met.includes("Pluie")?1.5:1.0;
+const tb=isW?5:isS?28:15;const tmax=tb+Math.floor(Math.random()*8),tmin=tb-3+Math.floor(Math.random()*4);
+const prec=met.includes("Pluie")?5+Math.random()*20:met==="Orageux"?15+Math.random()*25:0;
+const base={"Lavage Auto":(180+Math.random()*250)*sf*wf*rf*yg,"Boutique":(25+Math.random()*60)*wf*yg,"Distrib. Jetons":(15+Math.random()*35)*wf*yg,"Laverie CB":(40+Math.random()*80)*lb*yg,"Distributeur":(20+Math.random()*45)*wf*yg};
+const byS={};let tot=0;for(const s of sources){const v=Math.round(base[s]*100)/100;byS[s]=v;tot+=v;}
+const dd=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+days.push({date:dd,dow,ca_ttc:Math.round(tot*100)/100,sources:byS,meteo:{condition:met,icon:mI[met],temp_max:tmax,temp_min:tmin,precipitation:Math.round(prec*10)/10,gel:tmin<=0}});}
+return{days,sources,sourceColors};}
+const DATA=generateData();
 
+const fmt=n=>new Intl.NumberFormat("fr-FR",{minimumFractionDigits:0,maximumFractionDigits:0}).format(Math.round(n));
+const fmtD=s=>{const d=new Date(s+"T00:00:00");return d.toLocaleDateString("fr-FR",{day:"numeric",month:"short"});};
+const fmtDF=s=>{const d=new Date(s+"T00:00:00");return d.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"long",year:"numeric"});};
+const fmtMo=s=>{const[y,m]=s.split("-");return["","Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"][parseInt(m)]+" "+y;};
+const fmtMS=s=>{const[y,m]=s.split("-");return["","Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"][parseInt(m)]+" "+y;};
+const dts=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const PERIODS=[{id:"today",label:"Aujourd'hui"},{id:"week",label:"Semaine"},{id:"month",label:"Ce mois"},{id:"last_month",label:"Mois dernier"},{id:"90d",label:"90 jours"},{id:"all",label:"6 mois"}];
+function getPD(id){const r=new Date(2026,2,23);let s,e=new Date(r);switch(id){case"today":s=new Date(r);break;case"week":s=new Date(r);{const d=s.getDay();s.setDate(s.getDate()-(d===0?6:d-1));}break;case"month":s=new Date(r.getFullYear(),r.getMonth(),1);break;case"last_month":s=new Date(r.getFullYear(),r.getMonth()-1,1);e=new Date(r.getFullYear(),r.getMonth(),0);break;case"90d":s=new Date(r);s.setDate(s.getDate()-89);break;case"all":s=new Date(r);s.setDate(s.getDate()-179);break;default:s=new Date(r);s.setDate(s.getDate()-29);}return{startStr:dts(s),endStr:dts(e)};}
+function getPrev(id){const r=new Date(2026,2,23);let s,e;switch(id){case"today":{const d=new Date(r);d.setDate(d.getDate()-1);s=new Date(d);e=new Date(d);break;}case"week":{e=new Date(r);const d=e.getDay();e.setDate(e.getDate()-(d===0?6:d-1)-1);s=new Date(e);s.setDate(s.getDate()-6);break;}case"month":s=new Date(r.getFullYear(),r.getMonth()-1,1);e=new Date(r.getFullYear(),r.getMonth(),0);break;case"last_month":s=new Date(r.getFullYear(),r.getMonth()-2,1);e=new Date(r.getFullYear(),r.getMonth()-1,0);break;case"90d":e=new Date(r);e.setDate(e.getDate()-90);s=new Date(e);s.setDate(s.getDate()-89);break;case"all":e=new Date(r);e.setDate(e.getDate()-180);s=new Date(e);s.setDate(s.getDate()-179);break;default:e=new Date(r);e.setDate(e.getDate()-30);s=new Date(e);s.setDate(s.getDate()-29);}return{startStr:dts(s),endStr:dts(e)};}
 
-// ─── DATA (2 years) ─────────────────────────────────────────────────
-function generateData() {
-  const sources = ["Lavage Auto", "Boutique", "Distrib. Jetons", "Laverie CB", "Distributeur"];
-  const sourceColors = { "Lavage Auto": "#0ea5e9", "Boutique": "#22c55e", "Distrib. Jetons": "#f59e0b", "Laverie CB": "#8b5cf6", "Distributeur": "#ef4444" };
-  const meteoC = ["Ensoleillé", "Nuageux", "Pluie", "Pluie forte", "Couvert", "Orageux", "Brouillard"];
-  const meteoI = { "Ensoleillé": "☀️", "Nuageux": "⛅", "Pluie": "🌧️", "Pluie forte": "⛈️", "Couvert": "☁️", "Orageux": "⛈️", "Brouillard": "🌫️" };
-  const days = [];
-  const now = new Date(2026, 2, 23);
-  for (let i = 729; i >= 0; i--) {
-    const d = new Date(now); d.setDate(d.getDate() - i);
-    const dow = d.getDay(), month = d.getMonth(), year = d.getFullYear();
-    const yg = year === 2026 ? 1.08 : year === 2025 ? 1.0 : 0.93;
-    const sf = month >= 4 && month <= 8 ? 1.3 : month >= 10 || month <= 1 ? 0.7 : 1.0;
-    const wf = dow === 0 || dow === 6 ? 1.4 : 1.0;
-    const isW = month >= 10 || month <= 2, isS = month >= 5 && month <= 8;
-    const mi = isW ? [2,3,4,4,5,6][Math.floor(Math.random()*6)] : isS ? [0,0,0,1,1,2][Math.floor(Math.random()*6)] : Math.floor(Math.random()*meteoC.length);
-    const met = meteoC[mi];
-    const rf = met.includes("Pluie") || met === "Orageux" ? 0.4 : met === "Couvert" ? 0.8 : 1.0;
-    const lb = met.includes("Pluie") ? 1.5 : 1.0;
-    const tb = isW ? 5 : isS ? 28 : 15;
-    const tmax = tb + Math.floor(Math.random()*8), tmin = tb - 3 + Math.floor(Math.random()*4);
-    const prec = met.includes("Pluie") ? 5+Math.random()*20 : met === "Orageux" ? 15+Math.random()*25 : 0;
-    const base = { "Lavage Auto": (180+Math.random()*250)*sf*wf*rf*yg, "Boutique": (25+Math.random()*60)*wf*yg, "Distrib. Jetons": (15+Math.random()*35)*wf*yg, "Laverie CB": (40+Math.random()*80)*lb*yg, "Distributeur": (20+Math.random()*45)*wf*yg };
-    const byS = {}; let tot = 0;
-    for (const s of sources) { const v = Math.round(base[s]*100)/100; byS[s] = v; tot += v; }
-    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    days.push({ date: ds, dow, ca_ttc: Math.round(tot*100)/100, sources: byS, meteo: { condition: met, icon: meteoI[met], temp_max: tmax, temp_min: tmin, precipitation: Math.round(prec*10)/10, gel: tmin <= 0 } });
-  }
-  return { days, sources, sourceColors };
-}
-const DATA = generateData();
+// ─── COMPARATOR ─────────────────────────────────────
+function Comp({showHT}){
+const[mode,setMode]=useState("month");const[selA,setSelA]=useState("2026-03-22");const[selB,setSelB]=useState("2026-03-15");
+const[moA,setMoA]=useState("2026-03");const[moB,setMoB]=useState("2026-02");const[yrA,setYrA]=useState("2026");const[yrB,setYrB]=useState("2025");
+const aM=useMemo(()=>[...new Set(DATA.days.map(d=>d.date.substring(0,7)))].sort(),[]);
+const aY=useMemo(()=>[...new Set(DATA.days.map(d=>d.date.substring(0,4)))].sort(),[]);
+const c=useMemo(()=>{let dA=[],dB=[],lA="",lB="";
+if(mode==="day"){dA=DATA.days.filter(d=>d.date===selA);dB=DATA.days.filter(d=>d.date===selB);lA=fmtDF(selA);lB=fmtDF(selB);}
+else if(mode==="month"){dA=DATA.days.filter(d=>d.date.startsWith(moA));dB=DATA.days.filter(d=>d.date.startsWith(moB));lA=fmtMo(moA);lB=fmtMo(moB);}
+else{dA=DATA.days.filter(d=>d.date.startsWith(yrA));dB=DATA.days.filter(d=>d.date.startsWith(yrB));lA=yrA;lB=yrB;}
+const sm=arr=>{const t={};let tot=0;DATA.sources.forEach(s=>{t[s]=0;});arr.forEach(d=>{DATA.sources.forEach(s=>{t[s]+=d.sources[s]||0;});});DATA.sources.forEach(s=>{tot+=t[s];});return{...t,total:tot};};
+const a=sm(dA),b=sm(dB);
+const rows=DATA.sources.map(s=>{const va=showHT?a[s]/1.2:a[s];const vb=showHT?b[s]/1.2:b[s];const dl=vb>0?((va-vb)/vb)*100:(va>0?100:0);return{name:s,color:DATA.sourceColors[s],a:va,b:vb,delta:dl};});
+const tA=showHT?a.total/1.2:a.total,tB=showHT?b.total/1.2:b.total;const tD=tB>0?((tA-tB)/tB)*100:(tA>0?100:0);
+const mA=mode==="day"&&dA[0]?dA[0].meteo:null,mB=mode==="day"&&dB[0]?dB[0].meteo:null;
+return{rows,tA,tB,tD,lA,lB,cA:dA.length,cB:dB.length,mA,mB};},[mode,selA,selB,moA,moB,yrA,yrB,showHT]);
+const cc=useMemo(()=>{if(mode==="day")return[];
+if(mode==="month"){const dA=DATA.days.filter(d=>d.date.startsWith(moA));const dB=DATA.days.filter(d=>d.date.startsWith(moB));const mx=Math.max(dA.length,dB.length);const r=[];for(let i=0;i<mx;i++){const row={day:i+1};if(dA[i]){let t=0;DATA.sources.forEach(s=>{t+=dA[i].sources[s]||0;});row.a=showHT?t/1.2:t;}if(dB[i]){let t=0;DATA.sources.forEach(s=>{t+=dB[i].sources[s]||0;});row.b=showHT?t/1.2:t;}r.push(row);}return r;}
+const ms=["01","02","03","04","05","06","07","08","09","10","11","12"];const ml=["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
+return ms.map((m,i)=>{const dA=DATA.days.filter(d=>d.date.startsWith(yrA+"-"+m));const dB=DATA.days.filter(d=>d.date.startsWith(yrB+"-"+m));let tA=0,tB=0;dA.forEach(d=>{DATA.sources.forEach(s=>{tA+=d.sources[s]||0;});});dB.forEach(d=>{DATA.sources.forEach(s=>{tB+=d.sources[s]||0;});});return{day:ml[i],a:dA.length>0?(showHT?tA/1.2:tA):undefined,b:dB.length>0?(showHT?tB/1.2:tB):undefined};});},[mode,moA,moB,yrA,yrB,showHT]);
+const modes=[{id:"day",l:"Jour",i:"📅"},{id:"month",l:"Mois",i:"📆"},{id:"year",l:"Année",i:"📊"}];
+const minD=DATA.days[0].date,maxD=DATA.days[DATA.days.length-1].date;
+return html`<div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+<h2 className="text-sm font-bold text-gray-900 mb-3">⚖️ Comparateur libre</h2>
+<div className="flex gap-2 mb-4">${modes.map(m=>html`<button key=${m.id} onClick=${()=>setMode(m.id)} className="flex-1 py-2 rounded-xl text-xs font-semibold" style=${{background:mode===m.id?"#1e293b":"#f8fafc",color:mode===m.id?"#fff":"#64748b",border:mode===m.id?"none":"1px solid #e2e8f0"}}>${m.i} ${m.l}</button>`)}</div>
+<div className="grid grid-cols-2 gap-3 mb-4">
+<div><label className="text-xs font-semibold text-sky-600 mb-1 block">Période A</label>
+${mode==="day"?html`<input type="date" value=${selA} onChange=${e=>setSelA(e.target.value)} min=${minD} max=${maxD} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-sky-50"/>`:
+mode==="month"?html`<select value=${moA} onChange=${e=>setMoA(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-sky-50">${aM.map(m=>html`<option key=${m} value=${m}>${fmtMS(m)}</option>`)}</select>`:
+html`<select value=${yrA} onChange=${e=>setYrA(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-sky-50">${aY.map(y=>html`<option key=${y} value=${y}>${y}</option>`)}</select>`}</div>
+<div><label className="text-xs font-semibold text-violet-600 mb-1 block">Période B</label>
+${mode==="day"?html`<input type="date" value=${selB} onChange=${e=>setSelB(e.target.value)} min=${minD} max=${maxD} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-violet-50"/>`:
+mode==="month"?html`<select value=${moB} onChange=${e=>setMoB(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-violet-50">${aM.map(m=>html`<option key=${m} value=${m}>${fmtMS(m)}</option>`)}</select>`:
+html`<select value=${yrB} onChange=${e=>setYrB(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-violet-50">${aY.map(y=>html`<option key=${y} value=${y}>${y}</option>`)}</select>`}</div></div>
+${mode==="day"&&c.mA&&html`<div className="grid grid-cols-2 gap-3 mb-4">
+<div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-sky-50 text-xs"><span>${c.mA.icon}</span><span className="text-gray-600">${c.mA.condition}</span><span className="ml-auto text-gray-500">${c.mA.temp_min}°/${c.mA.temp_max}°</span></div>
+${c.mB&&html`<div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-50 text-xs"><span>${c.mB.icon}</span><span className="text-gray-600">${c.mB.condition}</span><span className="ml-auto text-gray-500">${c.mB.temp_min}°/${c.mB.temp_max}°</span></div>`}</div>`}
+<div className="grid grid-cols-2 gap-3 mb-3">
+<div className="bg-sky-50 rounded-xl p-3 text-center"><div className="text-xs text-sky-600 font-semibold mb-0.5 truncate">${c.lA}</div><div className="text-xl font-bold text-gray-900">${fmt(c.tA)}<span className="text-sm text-gray-400 ml-1">€</span></div>${mode!=="day"&&html`<div className="text-xs text-gray-400">${c.cA} jours</div>`}</div>
+<div className="bg-violet-50 rounded-xl p-3 text-center"><div className="text-xs text-violet-600 font-semibold mb-0.5 truncate">${c.lB}</div><div className="text-xl font-bold text-gray-900">${fmt(c.tB)}<span className="text-sm text-gray-400 ml-1">€</span></div>${mode!=="day"&&html`<div className="text-xs text-gray-400">${c.cB} jours</div>`}</div></div>
+<div className="flex items-center justify-center gap-2 mb-4"><span className=${"text-sm font-bold px-3 py-1.5 rounded-full "+(c.tD>=0?"bg-emerald-50 text-emerald-600":"bg-red-50 text-red-600")}>${c.tD>=0?"↑":"↓"} ${Math.abs(c.tD).toFixed(1)}%</span><span className="text-xs text-gray-400">A vs B</span></div>
+<div className="space-y-3">${c.rows.map(r=>html`<div key=${r.name}>
+<div className="flex items-center justify-between mb-1.5"><div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style=${{background:r.color}}/><span className="text-xs font-semibold text-gray-700">${r.name}</span></div><span className=${"text-xs font-bold px-1.5 py-0.5 rounded-full "+(r.delta>=0?"bg-emerald-50 text-emerald-600":"bg-red-50 text-red-600")}>${r.delta>=0?"+":""}${r.delta.toFixed(1)}%</span></div>
+<div className="flex gap-2"><div className="flex-1"><div className="h-5 rounded-lg bg-gray-100 relative"><div className="h-full rounded-lg" style=${{width:Math.min(100,(r.a/Math.max(r.a,r.b,1))*100)+"%",background:"linear-gradient(90deg,#0ea5e940,"+r.color+"90)"}}/><span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-700">${fmt(r.a)}€</span></div></div>
+<div className="flex-1"><div className="h-5 rounded-lg bg-gray-100 relative"><div className="h-full rounded-lg" style=${{width:Math.min(100,(r.b/Math.max(r.a,r.b,1))*100)+"%",background:"linear-gradient(90deg,#8b5cf640,"+r.color+"90)"}}/><span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-700">${fmt(r.b)}€</span></div></div></div></div>`)}</div>
+${mode!=="day"&&cc.length>0&&html`<div className="mt-4 pt-4 border-t border-gray-100">
+<${ResponsiveContainer} width="100%" height=${160}><${ComposedChart} data=${cc}>
+<${XAxis} dataKey="day" tick=${{fontSize:9,fill:"#94a3b8"}} axisLine=${false} tickLine=${false} interval=${mode==="month"?Math.floor(cc.length/8):0}/>
+<${YAxis} tick=${{fontSize:9,fill:"#94a3b8"}} axisLine=${false} tickLine=${false} width=${35} tickFormatter=${v=>v>=1000?Math.round(v/1000)+"k":Math.round(v)}/>
+<${Line} type="monotone" dataKey="a" stroke="#0ea5e9" strokeWidth=${2.5} dot=${false}/>
+<${Line} type="monotone" dataKey="b" stroke="#8b5cf6" strokeWidth=${2.5} dot=${false} strokeDasharray="6 3"/>
+</${ComposedChart}></${ResponsiveContainer}></div>`}
+</div>`;}
 
-// ─── HELPERS ────────────────────────────────────────────────────────
-const fmt = n => new Intl.NumberFormat('fr-FR',{minimumFractionDigits:0,maximumFractionDigits:0}).format(Math.round(n));
-const fmtDate = s => { const d = new Date(s+"T00:00:00"); return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'}); };
-const fmtDateFull = s => { const d = new Date(s+"T00:00:00"); return d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'long',year:'numeric'}); };
-const fmtMonth = s => { const [y,m] = s.split('-'); const ms = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']; return `${ms[parseInt(m)]} ${y}`; };
-const fmtMS = s => { const [y,m] = s.split('-'); const ms = ['','Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']; return `${ms[parseInt(m)]} ${y}`; };
-const dateStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-
-const PERIODS = [{id:"today",label:"Aujourd'hui"},{id:"week",label:"Semaine"},{id:"month",label:"Ce mois"},{id:"last_month",label:"Mois dernier"},{id:"90d",label:"90 jours"},{id:"all",label:"6 mois"}];
-
-function getPeriodDates(id) {
-  const r = new Date(2026,2,23); let s, e = new Date(r);
-  switch(id) {
-    case "today": s=new Date(r); break;
-    case "week": s=new Date(r); { const d=s.getDay(); s.setDate(s.getDate()-(d===0?6:d-1)); } break;
-    case "month": s=new Date(r.getFullYear(),r.getMonth(),1); break;
-    case "last_month": s=new Date(r.getFullYear(),r.getMonth()-1,1); e=new Date(r.getFullYear(),r.getMonth(),0); break;
-    case "90d": s=new Date(r); s.setDate(s.getDate()-89); break;
-    case "all": s=new Date(r); s.setDate(s.getDate()-179); break;
-    default: s=new Date(r); s.setDate(s.getDate()-29);
-  }
-  return { startStr: dateStr(s), endStr: dateStr(e) };
-}
-function getPrevDates(id) {
-  const r = new Date(2026,2,23); let s, e;
-  switch(id) {
-    case "today": { const d=new Date(r); d.setDate(d.getDate()-1); s=new Date(d); e=new Date(d); break; }
-    case "week": { e=new Date(r); const d=e.getDay(); e.setDate(e.getDate()-(d===0?6:d-1)-1); s=new Date(e); s.setDate(s.getDate()-6); break; }
-    case "month": s=new Date(r.getFullYear(),r.getMonth()-1,1); e=new Date(r.getFullYear(),r.getMonth(),0); break;
-    case "last_month": s=new Date(r.getFullYear(),r.getMonth()-2,1); e=new Date(r.getFullYear(),r.getMonth()-1,0); break;
-    case "90d": e=new Date(r); e.setDate(e.getDate()-90); s=new Date(e); s.setDate(s.getDate()-89); break;
-    case "all": e=new Date(r); e.setDate(e.getDate()-180); s=new Date(e); s.setDate(s.getDate()-179); break;
-    default: e=new Date(r); e.setDate(e.getDate()-30); s=new Date(e); s.setDate(s.getDate()-29);
-  }
-  return { startStr: dateStr(s), endStr: dateStr(e) };
-}
-
-// ─── SUB-COMPONENTS ─────────────────────────────────────────────────
-function KPICard({label,value,unit,delta,sub,icon,accent}) {
-  const pos = delta >= 0;
-  return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-20 h-20 opacity-5" style={{background:`radial-gradient(circle at top right,${accent},transparent)`}}/>
-      <div className="flex items-center gap-2 mb-2"><span className="text-lg">{icon}</span><span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</span></div>
-      <div className="flex items-baseline gap-1"><span className="text-2xl font-bold text-gray-900" style={{fontFamily:"'DM Sans',sans-serif"}}>{value}</span><span className="text-sm text-gray-400">{unit}</span></div>
-      {delta !== null && delta !== undefined && <div className="flex items-center gap-1 mt-2"><span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${pos?'bg-emerald-50 text-emerald-600':'bg-red-50 text-red-600'}`}>{pos?'↑':'↓'} {Math.abs(delta).toFixed(1)}%</span><span className="text-xs text-gray-400">vs préc.</span></div>}
-      {sub && <div className="text-xs text-gray-400 mt-1">{sub}</div>}
-    </div>
-  );
-}
-
-function SourcePill({name,color,active,onClick}) {
-  return <button onClick={onClick} className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200" style={{background:active?color:'transparent',color:active?'#fff':color,border:`2px solid ${color}`,opacity:active?1:0.6}}>{name}</button>;
-}
-
-function ChartTooltip({active,payload,label}) {
-  if (!active||!payload||!payload.length) return null;
-  const day = DATA.days.find(d=>d.date===label);
-  return (
-    <div className="bg-gray-900 text-white rounded-xl p-3 shadow-xl text-xs" style={{minWidth:180}}>
-      <div className="font-semibold mb-2 text-gray-300">{fmtDateFull(label)}</div>
-      {day && <div className="flex items-center gap-1 mb-2 text-gray-400"><span>{day.meteo.icon}</span><span>{day.meteo.condition}</span><span className="ml-auto">{day.meteo.temp_min}°/{day.meteo.temp_max}°</span></div>}
-      <div className="border-t border-gray-700 pt-2 space-y-1">
-        {payload.filter(p=>p.value>0).map((p,i)=><div key={i} className="flex items-center justify-between gap-3"><div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full" style={{background:p.color}}/><span>{p.name}</span></div><span className="font-semibold">{fmt(p.value)}€</span></div>)}
-        <div className="border-t border-gray-700 pt-1.5 mt-1.5 flex justify-between font-bold text-sm"><span>Total</span><span>{fmt(payload.reduce((s,p)=>s+(p.value||0),0))}€</span></div>
-      </div>
-    </div>
-  );
-}
-
-// ─── COMPARATOR ─────────────────────────────────────────────────────
-function Comparator({showHT}) {
-  const [mode,setMode] = useState("month");
-  const [selA,setSelA] = useState("2026-03-22");
-  const [selB,setSelB] = useState("2026-03-15");
-  const [monthA,setMonthA] = useState("2026-03");
-  const [monthB,setMonthB] = useState("2026-02");
-  const [yearA,setYearA] = useState("2026");
-  const [yearB,setYearB] = useState("2025");
-
-  const availDates = useMemo(()=>DATA.days.map(d=>d.date),[]);
-  const availMonths = useMemo(()=>[...new Set(DATA.days.map(d=>d.date.substring(0,7)))].sort(),[]);
-  const availYears = useMemo(()=>[...new Set(DATA.days.map(d=>d.date.substring(0,4)))].sort(),[]);
-
-  const comp = useMemo(()=>{
-    let dA=[],dB=[],lA="",lB="";
-    if(mode==="day"){dA=DATA.days.filter(d=>d.date===selA);dB=DATA.days.filter(d=>d.date===selB);lA=fmtDateFull(selA);lB=fmtDateFull(selB);}
-    else if(mode==="month"){dA=DATA.days.filter(d=>d.date.startsWith(monthA));dB=DATA.days.filter(d=>d.date.startsWith(monthB));lA=fmtMonth(monthA);lB=fmtMonth(monthB);}
-    else{dA=DATA.days.filter(d=>d.date.startsWith(yearA));dB=DATA.days.filter(d=>d.date.startsWith(yearB));lA=yearA;lB=yearB;}
-    const sum=ds=>{const t={};let total=0;DATA.sources.forEach(s=>{t[s]=0;});ds.forEach(d=>{DATA.sources.forEach(s=>{t[s]+=d.sources[s]||0;});});DATA.sources.forEach(s=>{total+=t[s];});return{...t,total};};
-    const a=sum(dA),b=sum(dB);
-    const rows=DATA.sources.map(s=>{const va=showHT?a[s]/1.2:a[s];const vb=showHT?b[s]/1.2:b[s];const delta=vb>0?((va-vb)/vb)*100:(va>0?100:0);return{name:s,color:DATA.sourceColors[s],a:va,b:vb,delta};});
-    const tA=showHT?a.total/1.2:a.total,tB=showHT?b.total/1.2:b.total;
-    const tD=tB>0?((tA-tB)/tB)*100:(tA>0?100:0);
-    const mA=mode==="day"&&dA[0]?dA[0].meteo:null,mB=mode==="day"&&dB[0]?dB[0].meteo:null;
-    return{rows,tA,tB,tD,lA,lB,cA:dA.length,cB:dB.length,mA,mB};
-  },[mode,selA,selB,monthA,monthB,yearA,yearB,showHT]);
-
-  // Chart data for month/year comparison
-  const compChart = useMemo(()=>{
-    if(mode==="day") return [];
-    if(mode==="month"){
-      const dA=DATA.days.filter(d=>d.date.startsWith(monthA));
-      const dB=DATA.days.filter(d=>d.date.startsWith(monthB));
-      const mx=Math.max(dA.length,dB.length);
-      const r=[];
-      for(let i=0;i<mx;i++){
-        const row={day:i+1};
-        if(dA[i]){let t=0;DATA.sources.forEach(s=>{t+=dA[i].sources[s]||0;});row.a=showHT?t/1.2:t;}
-        if(dB[i]){let t=0;DATA.sources.forEach(s=>{t+=dB[i].sources[s]||0;});row.b=showHT?t/1.2:t;}
-        r.push(row);
-      }
-      return r;
-    }
-    const mths=['01','02','03','04','05','06','07','08','09','10','11','12'];
-    const mL=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
-    return mths.map((m,i)=>{
-      const dA=DATA.days.filter(d=>d.date.startsWith(`${yearA}-${m}`));
-      const dB=DATA.days.filter(d=>d.date.startsWith(`${yearB}-${m}`));
-      let tA=0,tB=0;
-      dA.forEach(d=>{DATA.sources.forEach(s=>{tA+=d.sources[s]||0;});});
-      dB.forEach(d=>{DATA.sources.forEach(s=>{tB+=d.sources[s]||0;});});
-      return{day:mL[i],a:dA.length>0?(showHT?tA/1.2:tA):undefined,b:dB.length>0?(showHT?tB/1.2:tB):undefined};
-    });
-  },[mode,monthA,monthB,yearA,yearB,showHT]);
-
-  const modes=[{id:"day",label:"Jour",icon:"📅"},{id:"month",label:"Mois",icon:"📆"},{id:"year",label:"Année",icon:"📊"}];
-
-  return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-      <h2 className="text-sm font-bold text-gray-900 mb-3">⚖️ Comparateur libre</h2>
-      <div className="flex gap-2 mb-4">{modes.map(m=><button key={m.id} onClick={()=>setMode(m.id)} className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all" style={{background:mode===m.id?'#1e293b':'#f8fafc',color:mode===m.id?'#fff':'#64748b',border:mode===m.id?'none':'1px solid #e2e8f0'}}>{m.icon} {m.label}</button>)}</div>
-
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div>
-          <label className="text-xs font-semibold text-sky-600 mb-1 block">Période A</label>
-          {mode==="day"&&<input type="date" value={selA} onChange={e=>setSelA(e.target.value)} min={availDates[0]} max={availDates[availDates.length-1]} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-sky-50 focus:outline-none focus:ring-2 focus:ring-sky-300"/>}
-          {mode==="month"&&<select value={monthA} onChange={e=>setMonthA(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-sky-50 focus:outline-none focus:ring-2 focus:ring-sky-300">{availMonths.map(m=><option key={m} value={m}>{fmtMS(m)}</option>)}</select>}
-          {mode==="year"&&<select value={yearA} onChange={e=>setYearA(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-sky-50 focus:outline-none focus:ring-2 focus:ring-sky-300">{availYears.map(y=><option key={y} value={y}>{y}</option>)}</select>}
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-violet-600 mb-1 block">Période B</label>
-          {mode==="day"&&<input type="date" value={selB} onChange={e=>setSelB(e.target.value)} min={availDates[0]} max={availDates[availDates.length-1]} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-violet-50 focus:outline-none focus:ring-2 focus:ring-violet-300"/>}
-          {mode==="month"&&<select value={monthB} onChange={e=>setMonthB(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-violet-50 focus:outline-none focus:ring-2 focus:ring-violet-300">{availMonths.map(m=><option key={m} value={m}>{fmtMS(m)}</option>)}</select>}
-          {mode==="year"&&<select value={yearB} onChange={e=>setYearB(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-violet-50 focus:outline-none focus:ring-2 focus:ring-violet-300">{availYears.map(y=><option key={y} value={y}>{y}</option>)}</select>}
-        </div>
-      </div>
-
-      {mode==="day"&&(comp.mA||comp.mB)&&(
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          {comp.mA&&<div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-sky-50 text-xs"><span className="text-base">{comp.mA.icon}</span><span className="text-gray-600">{comp.mA.condition}</span><span className="ml-auto text-gray-500">{comp.mA.temp_min}°/{comp.mA.temp_max}°</span></div>}
-          {comp.mB&&<div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-50 text-xs"><span className="text-base">{comp.mB.icon}</span><span className="text-gray-600">{comp.mB.condition}</span><span className="ml-auto text-gray-500">{comp.mB.temp_min}°/{comp.mB.temp_max}°</span></div>}
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <div className="bg-sky-50 rounded-xl p-3 text-center">
-          <div className="text-xs text-sky-600 font-semibold mb-0.5 truncate">{comp.lA}</div>
-          <div className="text-xl font-bold text-gray-900">{fmt(comp.tA)}<span className="text-sm text-gray-400 ml-1">€</span></div>
-          {mode!=="day"&&<div className="text-xs text-gray-400">{comp.cA} jours</div>}
-        </div>
-        <div className="bg-violet-50 rounded-xl p-3 text-center">
-          <div className="text-xs text-violet-600 font-semibold mb-0.5 truncate">{comp.lB}</div>
-          <div className="text-xl font-bold text-gray-900">{fmt(comp.tB)}<span className="text-sm text-gray-400 ml-1">€</span></div>
-          {mode!=="day"&&<div className="text-xs text-gray-400">{comp.cB} jours</div>}
-        </div>
-      </div>
-
-      <div className="flex items-center justify-center gap-2 mb-4">
-        <span className={`text-sm font-bold px-3 py-1.5 rounded-full ${comp.tD>=0?'bg-emerald-50 text-emerald-600':'bg-red-50 text-red-600'}`}>{comp.tD>=0?'↑':'↓'} {Math.abs(comp.tD).toFixed(1)}%</span>
-        <span className="text-xs text-gray-400">A vs B</span>
-      </div>
-
-      <div className="space-y-3">
-        {comp.rows.map(r=>(
-          <div key={r.name}>
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{background:r.color}}/><span className="text-xs font-semibold text-gray-700">{r.name}</span></div>
-              <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${r.delta>=0?'bg-emerald-50 text-emerald-600':'bg-red-50 text-red-600'}`}>{r.delta>=0?'+':''}{r.delta.toFixed(1)}%</span>
-            </div>
-            <div className="flex gap-2 items-center">
-              <div className="flex-1"><div className="h-5 rounded-lg overflow-hidden bg-gray-100 relative"><div className="h-full rounded-lg transition-all duration-700" style={{width:`${Math.min(100,(r.a/Math.max(r.a,r.b,1))*100)}%`,background:`linear-gradient(90deg,#0ea5e940,${r.color}90)`}}/><span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-700">{fmt(r.a)}€</span></div></div>
-              <div className="flex-1"><div className="h-5 rounded-lg overflow-hidden bg-gray-100 relative"><div className="h-full rounded-lg transition-all duration-700" style={{width:`${Math.min(100,(r.b/Math.max(r.a,r.b,1))*100)}%`,background:`linear-gradient(90deg,#8b5cf640,${r.color}90)`}}/><span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-700">{fmt(r.b)}€</span></div></div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {mode!=="day"&&compChart.length>0&&(
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 rounded bg-sky-500"/><span className="text-xs text-gray-500">A</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 rounded bg-violet-500" style={{backgroundImage:'repeating-linear-gradient(90deg,#8b5cf6 0,#8b5cf6 4px,transparent 4px,transparent 7px)'}}/><span className="text-xs text-gray-500">B</span></div>
-          </div>
-          <ResponsiveContainer width="100%" height={160}>
-            <ComposedChart data={compChart}>
-              <XAxis dataKey="day" tick={{fontSize:9,fill:'#94a3b8'}} axisLine={false} tickLine={false} interval={mode==="month"?Math.floor(compChart.length/8):0}/>
-              <YAxis tick={{fontSize:9,fill:'#94a3b8'}} axisLine={false} tickLine={false} width={35} tickFormatter={v=>v>=1000?`${Math.round(v/1000)}k`:Math.round(v)}/>
-              <Tooltip formatter={(v,name)=>[v!==undefined?`${fmt(v)}€`:'—',name==='a'?'Période A':'Période B']} contentStyle={{borderRadius:12,border:'none',boxShadow:'0 4px 12px rgba(0,0,0,0.15)',fontSize:11}}/>
-              <Line type="monotone" dataKey="a" stroke="#0ea5e9" strokeWidth={2.5} dot={false} connectNulls={false}/>
-              <Line type="monotone" dataKey="b" stroke="#8b5cf6" strokeWidth={2.5} dot={false} strokeDasharray="6 3" connectNulls={false}/>
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── MAIN ───────────────────────────────────────────────────────────
-function Dashboard() {
-  const [period,setPeriod] = useState("month");
-  const [activeSources,setActiveSources] = useState(new Set(DATA.sources));
-  const [showHT,setShowHT] = useState(false);
-  const [loaded,setLoaded] = useState(false);
-  const [tab,setTab] = useState("dashboard");
-  useEffect(()=>{setTimeout(()=>setLoaded(true),100);},[]);
-
-  const toggleSource = s => { setActiveSources(prev => { const n = new Set(prev); if(n.has(s)){if(n.size>1)n.delete(s);} else n.add(s); return n; }); };
-
-  const {startStr,endStr} = getPeriodDates(period);
-  const prev = getPrevDates(period);
-  const filtered = useMemo(()=>DATA.days.filter(d=>d.date>=startStr&&d.date<=endStr),[startStr,endStr]);
-  const prevFiltered = useMemo(()=>DATA.days.filter(d=>d.date>=prev.startStr&&d.date<=prev.endStr),[prev.startStr,prev.endStr]);
-
-  const totalCA = useMemo(()=>filtered.reduce((s,d)=>{let t=0;for(const src of activeSources)t+=d.sources[src]||0;return s+t;},0),[filtered,activeSources]);
-  const prevCA = useMemo(()=>prevFiltered.reduce((s,d)=>{let t=0;for(const src of activeSources)t+=d.sources[src]||0;return s+t;},0),[prevFiltered,activeSources]);
-  const dCA = showHT?totalCA/1.2:totalCA, pCA = showHT?prevCA/1.2:prevCA;
-  const delta = pCA>0?((dCA-pCA)/pCA)*100:0;
-  const avg = filtered.length>0?dCA/filtered.length:0;
-  const todayD = DATA.days.find(d=>d.date==="2026-03-23");
-  const todayCA = todayD?[...activeSources].reduce((s,src)=>s+(todayD.sources[src]||0),0):0;
-  const todayDisp = showHT?todayCA/1.2:todayCA;
-  const bestDay = useMemo(()=>{if(!filtered.length)return null;return filtered.reduce((b,d)=>{const c=[...activeSources].reduce((s,src)=>s+(d.sources[src]||0),0);return c>(b.ca||0)?{date:d.date,ca:c}:b;},{ca:0});},[filtered,activeSources]);
-
-  const chartData = useMemo(()=>{
-    if(filtered.length>60){const w={};filtered.forEach(d=>{const dt=new Date(d.date+"T00:00:00");const ws=new Date(dt);const day=ws.getDay();ws.setDate(ws.getDate()-(day===0?6:day-1));const k=dateStr(ws);if(!w[k]){w[k]={date:k};DATA.sources.forEach(s=>{w[k][s]=0;});}DATA.sources.forEach(s=>{w[k][s]+=d.sources[s]||0;});});return Object.values(w).sort((a,b)=>a.date.localeCompare(b.date));}
-    return filtered.map(d=>{const r={date:d.date};DATA.sources.forEach(s=>{r[s]=Math.round(d.sources[s]||0);});return r;});
-  },[filtered]);
-
-  const srcBD = useMemo(()=>{const t={};DATA.sources.forEach(s=>{t[s]=0;});filtered.forEach(d=>{DATA.sources.forEach(s=>{t[s]+=d.sources[s]||0;});});const g=Object.values(t).reduce((a,b)=>a+b,0);return DATA.sources.map(s=>({name:s,value:showHT?t[s]/1.2:t[s],pct:g>0?(t[s]/g*100):0,color:DATA.sourceColors[s]})).sort((a,b)=>b.value-a.value);},[filtered,showHT]);
-
-  const mComp = useMemo(()=>{const m={};const recent=DATA.days.filter(d=>d.date>=getPeriodDates("all").startStr);recent.forEach(d=>{const mo=d.date.substring(0,7);if(!m[mo]){m[mo]={month:mo};DATA.sources.forEach(s=>{m[mo][s]=0;});}DATA.sources.forEach(s=>{m[mo][s]+=d.sources[s]||0;});});return Object.values(m).sort((a,b)=>a.month.localeCompare(b.month));},[]);
-
-  const an = `transition-all duration-700 ${loaded?'opacity-100 translate-y-0':'opacity-0 translate-y-4'}`;
-
-  return (
-    <div className="min-h-screen" style={{background:'linear-gradient(135deg,#f8fafc 0%,#eef2ff 50%,#f0fdf4 100%)',fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-
-      {/* Header */}
-      <div className={an}><div className="px-4 pt-5 pb-3"><div className="flex items-center justify-between">
-        <div className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg" style={{background:'linear-gradient(135deg,#0ea5e9,#6366f1)'}}>🚗</div><div><h1 className="text-lg font-bold text-gray-900">LAV-TEC</h1><p className="text-xs text-gray-400">Manosque</p></div></div>
-        <div className="flex items-center gap-2">
-          <button onClick={()=>setShowHT(!showHT)} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all" style={{background:showHT?'#1e293b':'#fff',color:showHT?'#fff':'#64748b',border:'1px solid #e2e8f0'}}>{showHT?'HT':'TTC'}</button>
-          {todayD&&<div className="flex items-center gap-1 px-2 py-1.5 bg-white rounded-lg border border-gray-100 text-xs"><span>{todayD.meteo.icon}</span><span className="text-gray-500">{todayD.meteo.temp_max}°</span></div>}
-        </div>
-      </div></div></div>
-
-      {/* Tabs */}
-      <div className={`px-4 pb-3 ${an}`}><div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-        <button onClick={()=>setTab("dashboard")} className="flex-1 py-2 rounded-lg text-xs font-bold transition-all" style={{background:tab==="dashboard"?'#fff':'transparent',color:tab==="dashboard"?'#1e293b':'#94a3b8',boxShadow:tab==="dashboard"?'0 1px 3px rgba(0,0,0,0.1)':'none'}}>📊 Dashboard</button>
-        <button onClick={()=>setTab("compare")} className="flex-1 py-2 rounded-lg text-xs font-bold transition-all" style={{background:tab==="compare"?'#fff':'transparent',color:tab==="compare"?'#1e293b':'#94a3b8',boxShadow:tab==="compare"?'0 1px 3px rgba(0,0,0,0.1)':'none'}}>⚖️ Comparer</button>
-      </div></div>
-
-      {tab==="compare"?(
-        <div className={`px-4 pb-8 ${an}`}>
-          <Comparator showHT={showHT}/>
-          <div className="text-center mt-6"><p className="text-xs text-gray-300">Dernière mise à jour : 23 mars 2026, 06:15</p><p className="text-xs text-gray-300 mt-1">Propulsé par <span className="font-semibold text-gray-400">POWOP.tech</span></p></div>
-        </div>
-      ):(
-        <>
-          {/* Periods */}
-          <div className={`px-4 pb-3 ${an}`}><div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" style={{scrollbarWidth:'none'}}>
-            {PERIODS.map(p=><button key={p.id} onClick={()=>setPeriod(p.id)} className="px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-200" style={{background:period===p.id?'#1e293b':'#fff',color:period===p.id?'#fff':'#64748b',border:period===p.id?'none':'1px solid #e2e8f0',boxShadow:period===p.id?'0 2px 8px rgba(30,41,59,0.3)':'none'}}>{p.label}</button>)}
-          </div></div>
-
-          {/* KPIs */}
-          <div className={`px-4 pb-3 ${an}`}><div className="grid grid-cols-2 gap-3">
-            <KPICard label={period==="today"?"Aujourd'hui":"CA Période"} value={fmt(period==="today"?todayDisp:dCA)} unit={showHT?"€ HT":"€ TTC"} delta={period!=="today"?delta:null} icon="💰" accent="#0ea5e9"/>
-            <KPICard label="Moyenne / jour" value={fmt(avg)} unit={showHT?"€ HT":"€ TTC"} delta={null} icon="📊" accent="#22c55e"/>
-            <KPICard label="Meilleur jour" value={bestDay?fmt(showHT?bestDay.ca/1.2:bestDay.ca):"—"} unit={showHT?"€ HT":"€ TTC"} delta={null} sub={bestDay?fmtDate(bestDay.date):""} icon="🏆" accent="#f59e0b"/>
-            <KPICard label="Jours" value={filtered.length} unit={period==="today"?"":"jours"} delta={null} icon="📅" accent="#8b5cf6"/>
-          </div></div>
-
-          {/* Source pills */}
-          <div className={`px-4 pb-3 ${an}`}><div className="flex gap-2 overflow-x-auto pb-1" style={{scrollbarWidth:'none'}}>
-            {DATA.sources.map(s=><SourcePill key={s} name={s} color={DATA.sourceColors[s]} active={activeSources.has(s)} onClick={()=>toggleSource(s)}/>)}
-          </div></div>
-
-          {/* CA Chart */}
-          <div className={`px-4 pb-4 ${an}`}><div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-3"><h2 className="text-sm font-bold text-gray-900">CA par source</h2><span className="text-xs text-gray-400">{filtered.length>60?'Par semaine':'Par jour'}</span></div>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={chartData} barCategoryGap="15%">
-                <XAxis dataKey="date" tick={{fontSize:10,fill:'#94a3b8'}} tickFormatter={fmtDate} interval={Math.max(0,Math.floor(chartData.length/8))} axisLine={false} tickLine={false}/>
-                <YAxis tick={{fontSize:10,fill:'#94a3b8'}} tickFormatter={v=>`${Math.round(v/1000)}k`} axisLine={false} tickLine={false} width={35}/>
-                <Tooltip content={<ChartTooltip/>} cursor={{fill:'rgba(0,0,0,0.04)',radius:8}}/>
-                {DATA.sources.filter(s=>activeSources.has(s)).map((s,i,a)=><Bar key={s} dataKey={s} stackId="ca" fill={DATA.sourceColors[s]} radius={i===a.length-1?[4,4,0,0]:[0,0,0,0]}/>)}
-              </BarChart>
-            </ResponsiveContainer>
-          </div></div>
-
-          {/* Source breakdown */}
-          <div className={`px-4 pb-4 ${an}`}><div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-            <h2 className="text-sm font-bold text-gray-900 mb-3">Répartition par source</h2>
-            <div className="space-y-3">{srcBD.map(s=>(
-              <div key={s.name}>
-                <div className="flex items-center justify-between mb-1"><div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{background:s.color}}/><span className="text-xs font-semibold text-gray-700">{s.name}</span></div><div className="flex items-center gap-2"><span className="text-xs font-bold text-gray-900">{fmt(s.value)}€</span><span className="text-xs text-gray-400 w-10 text-right">{s.pct.toFixed(0)}%</span></div></div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-1000 ease-out" style={{width:loaded?`${s.pct}%`:'0%',background:`linear-gradient(90deg,${s.color},${s.color}cc)`}}/></div>
-              </div>
-            ))}</div>
-          </div></div>
-
-          {/* Monthly */}
-          <div className={`px-4 pb-4 ${an}`}><div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-            <h2 className="text-sm font-bold text-gray-900 mb-3">Comparatif mensuel</h2>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={mComp} barCategoryGap="15%">
-                <XAxis dataKey="month" tick={{fontSize:10,fill:'#94a3b8'}} tickFormatter={v=>{const m=parseInt(v.split('-')[1]);return['','Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][m];}} axisLine={false} tickLine={false}/>
-                <YAxis tick={{fontSize:10,fill:'#94a3b8'}} tickFormatter={v=>`${Math.round(v/1000)}k`} axisLine={false} tickLine={false} width={35}/>
-                <Tooltip formatter={(v,name)=>[`${fmt(showHT?v/1.2:v)}€`,name]} labelFormatter={fmtMonth} contentStyle={{borderRadius:12,border:'none',boxShadow:'0 4px 12px rgba(0,0,0,0.15)',fontSize:12}}/>
-                {DATA.sources.filter(s=>activeSources.has(s)).map((s,i,a)=><Bar key={s} dataKey={s} stackId="m" fill={DATA.sourceColors[s]} radius={i===a.length-1?[4,4,0,0]:[0,0,0,0]}/>)}
-              </BarChart>
-            </ResponsiveContainer>
-          </div></div>
-
-          {/* Weather */}
-          <div className={`px-4 pb-4 ${an}`}><div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-            <h2 className="text-sm font-bold text-gray-900 mb-1">Météo & CA Lavage</h2>
-            <p className="text-xs text-gray-400 mb-3">Corrélation température / CA lavage auto</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <ComposedChart data={filtered.length>60?filtered.filter((_,i)=>i%3===0):filtered}>
-                <XAxis dataKey="date" tick={{fontSize:9,fill:'#94a3b8'}} tickFormatter={fmtDate} interval={Math.max(0,Math.floor((filtered.length>60?filtered.length/3:filtered.length)/6))} axisLine={false} tickLine={false}/>
-                <YAxis yAxisId="ca" tick={{fontSize:9,fill:'#94a3b8'}} axisLine={false} tickLine={false} width={30}/>
-                <YAxis yAxisId="temp" orientation="right" tick={{fontSize:9,fill:'#94a3b8'}} axisLine={false} tickLine={false} width={25} tickFormatter={v=>`${v}°`}/>
-                <Tooltip formatter={(v,name)=>[name==="CA Lavage"?`${fmt(v)}€`:`${v}°C`,name]} labelFormatter={fmtDateFull} contentStyle={{borderRadius:12,border:'none',boxShadow:'0 4px 12px rgba(0,0,0,0.15)',fontSize:11}}/>
-                <Area yAxisId="ca" dataKey="sources.Lavage Auto" name="CA Lavage" fill="#0ea5e920" stroke="#0ea5e9" strokeWidth={2} dot={false}/>
-                <Line yAxisId="temp" dataKey="meteo.temp_max" name="Temp. max" stroke="#f59e0b" strokeWidth={1.5} dot={false} strokeDasharray="4 2"/>
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div></div>
-
-          {/* Footer */}
-          <div className={`px-4 pb-8 ${an}`}><div className="text-center"><p className="text-xs text-gray-300">Dernière mise à jour : 23 mars 2026, 06:15</p><p className="text-xs text-gray-300 mt-1">Propulsé par <span className="font-semibold text-gray-400">POWOP.tech</span></p></div></div>
-        </>
-      )}
-    </div>
-  );
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Dashboard));
+// ─── MAIN ───────────────────────────────────────────
+function Dashboard(){
+const[period,setPeriod]=useState("month");const[actSrc,setActSrc]=useState(new Set(DATA.sources));const[showHT,setShowHT]=useState(false);const[loaded,setLoaded]=useState(false);const[tab,setTab]=useState("dashboard");
+useEffect(()=>{setTimeout(()=>setLoaded(true),100);},[]);
+const togSrc=s=>{setActSrc(p=>{const n=new Set(p);if(n.has(s)){if(n.size>1)n.delete(s);}else n.add(s);return n;});};
+const{startStr,endStr}=getPD(period);const prev=getPrev(period);
+const fil=useMemo(()=>DATA.days.filter(d=>d.date>=startStr&&d.date<=endStr),[startStr,endStr]);
+const pFil=useMemo(()=>DATA.days.filter(d=>d.date>=prev.startStr&&d.date<=prev.endStr),[prev.startStr,prev.endStr]);
+const tCA=useMemo(()=>fil.reduce((s,d)=>{let t=0;for(const src of actSrc)t+=d.sources[src]||0;return s+t;},0),[fil,actSrc]);
+const pCA=useMemo(()=>pFil.reduce((s,d)=>{let t=0;for(const src of actSrc)t+=d.sources[src]||0;return s+t;},0),[pFil,actSrc]);
+const dCA=showHT?tCA/1.2:tCA,ppCA=showHT?pCA/1.2:pCA;const delta=ppCA>0?((dCA-ppCA)/ppCA)*100:0;const avg=fil.length>0?dCA/fil.length:0;
+const tD=DATA.days.find(d=>d.date==="2026-03-23");const tDCA=tD?[...actSrc].reduce((s,src)=>s+(tD.sources[src]||0),0):0;const tDDisp=showHT?tDCA/1.2:tDCA;
+const best=useMemo(()=>{if(!fil.length)return null;return fil.reduce((b,d)=>{const cc=[...actSrc].reduce((s,src)=>s+(d.sources[src]||0),0);return cc>(b.ca||0)?{date:d.date,ca:cc}:b;},{ca:0});},[fil,actSrc]);
+const cData=useMemo(()=>{if(fil.length>60){const w={};fil.forEach(d=>{const dt=new Date(d.date+"T00:00:00");const ws=new Date(dt);const day=ws.getDay();ws.setDate(ws.getDate()-(day===0?6:day-1));const k=dts(ws);if(!w[k]){w[k]={date:k};DATA.sources.forEach(s=>{w[k][s]=0;});}DATA.sources.forEach(s=>{w[k][s]+=d.sources[s]||0;});});return Object.values(w).sort((a,b)=>a.date.localeCompare(b.date));}return fil.map(d=>{const r={date:d.date};DATA.sources.forEach(s=>{r[s]=Math.round(d.sources[s]||0);});return r;});},[fil]);
+const sBD=useMemo(()=>{const t={};DATA.sources.forEach(s=>{t[s]=0;});fil.forEach(d=>{DATA.sources.forEach(s=>{t[s]+=d.sources[s]||0;});});const g=Object.values(t).reduce((a,b)=>a+b,0);return DATA.sources.map(s=>({name:s,value:showHT?t[s]/1.2:t[s],pct:g>0?(t[s]/g*100):0,color:DATA.sourceColors[s]})).sort((a,b)=>b.value-a.value);},[fil,showHT]);
+const mCo=useMemo(()=>{const m={};DATA.days.filter(d=>d.date>=getPD("all").startStr).forEach(d=>{const mo=d.date.substring(0,7);if(!m[mo]){m[mo]={month:mo};DATA.sources.forEach(s=>{m[mo][s]=0;});}DATA.sources.forEach(s=>{m[mo][s]+=d.sources[s]||0;});});return Object.values(m).sort((a,b)=>a.month.localeCompare(b.month));},[]);
+const an="transition-all duration-700 "+(loaded?"opacity-100 translate-y-0":"opacity-0 translate-y-4");
+const aS=DATA.sources.filter(s=>actSrc.has(s));
+return html`<div className="min-h-screen" style=${{background:"linear-gradient(135deg,#f8fafc 0%,#eef2ff 50%,#f0fdf4 100%)",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
+<div className=${an}><div className="px-4 pt-5 pb-3"><div className="flex items-center justify-between">
+<div className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg" style=${{background:"linear-gradient(135deg,#0ea5e9,#6366f1)"}}>🚗</div><div><h1 className="text-lg font-bold text-gray-900">LAV-TEC</h1><p className="text-xs text-gray-400">Manosque</p></div></div>
+<div className="flex items-center gap-2"><button onClick=${()=>setShowHT(!showHT)} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style=${{background:showHT?"#1e293b":"#fff",color:showHT?"#fff":"#64748b",border:"1px solid #e2e8f0"}}>${showHT?"HT":"TTC"}</button>
+${tD&&html`<div className="flex items-center gap-1 px-2 py-1.5 bg-white rounded-lg border border-gray-100 text-xs"><span>${tD.meteo.icon}</span><span className="text-gray-500">${tD.meteo.temp_max}°</span></div>`}</div>
+</div></div></div>
+<div className=${"px-4 pb-3 "+an}><div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+<button onClick=${()=>setTab("dashboard")} className="flex-1 py-2 rounded-lg text-xs font-bold" style=${{background:tab==="dashboard"?"#fff":"transparent",color:tab==="dashboard"?"#1e293b":"#94a3b8",boxShadow:tab==="dashboard"?"0 1px 3px rgba(0,0,0,0.1)":"none"}}>📊 Dashboard</button>
+<button onClick=${()=>setTab("compare")} className="flex-1 py-2 rounded-lg text-xs font-bold" style=${{background:tab==="compare"?"#fff":"transparent",color:tab==="compare"?"#1e293b":"#94a3b8",boxShadow:tab==="compare"?"0 1px 3px rgba(0,0,0,0.1)":"none"}}>⚖️ Comparer</button></div></div>
+${tab==="compare"?html`<div className=${"px-4 pb-8 "+an}><${Comp} showHT=${showHT}/><div className="text-center mt-6"><p className="text-xs text-gray-300">Propulsé par <span className="font-semibold text-gray-400">POWOP.tech</span></p></div></div>`:html`<div>
+<div className=${"px-4 pb-3 "+an}><div className="flex gap-1.5 overflow-x-auto pb-1" style=${{scrollbarWidth:"none"}}>${PERIODS.map(p=>html`<button key=${p.id} onClick=${()=>setPeriod(p.id)} className="px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap" style=${{background:period===p.id?"#1e293b":"#fff",color:period===p.id?"#fff":"#64748b",border:period===p.id?"none":"1px solid #e2e8f0",boxShadow:period===p.id?"0 2px 8px rgba(30,41,59,0.3)":"none"}}>${p.label}</button>`)}</div></div>
+<div className=${"px-4 pb-3 "+an}><div className="grid grid-cols-2 gap-3">
+<div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 relative overflow-hidden"><div className="flex items-center gap-2 mb-2"><span className="text-lg">💰</span><span className="text-xs font-medium text-gray-400 uppercase tracking-wide">${period==="today"?"Aujourd'hui":"CA Période"}</span></div><div className="flex items-baseline gap-1"><span className="text-2xl font-bold text-gray-900">${fmt(period==="today"?tDDisp:dCA)}</span><span className="text-sm text-gray-400">${showHT?"€ HT":"€ TTC"}</span></div>${period!=="today"&&html`<div className="flex items-center gap-1 mt-2"><span className=${"text-xs font-semibold px-1.5 py-0.5 rounded-full "+(delta>=0?"bg-emerald-50 text-emerald-600":"bg-red-50 text-red-600")}>${delta>=0?"↑":"↓"} ${Math.abs(delta).toFixed(1)}%</span><span className="text-xs text-gray-400">vs préc.</span></div>`}</div>
+<div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"><div className="flex items-center gap-2 mb-2"><span className="text-lg">📊</span><span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Moyenne / jour</span></div><div className="flex items-baseline gap-1"><span className="text-2xl font-bold text-gray-900">${fmt(avg)}</span><span className="text-sm text-gray-400">${showHT?"€ HT":"€ TTC"}</span></div></div>
+<div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"><div className="flex items-center gap-2 mb-2"><span className="text-lg">🏆</span><span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Meilleur jour</span></div><div className="flex items-baseline gap-1"><span className="text-2xl font-bold text-gray-900">${best?fmt(showHT?best.ca/1.2:best.ca):"—"}</span><span className="text-sm text-gray-400">${showHT?"€ HT":"€ TTC"}</span></div>${best&&html`<div className="text-xs text-gray-400 mt-1">${fmtD(best.date)}</div>`}</div>
+<div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"><div className="flex items-center gap-2 mb-2"><span className="text-lg">📅</span><span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Jours</span></div><div className="flex items-baseline gap-1"><span className="text-2xl font-bold text-gray-900">${fil.length}</span><span className="text-sm text-gray-400">${period==="today"?"":"jours"}</span></div></div>
+</div></div>
+<div className=${"px-4 pb-3 "+an}><div className="flex gap-2 overflow-x-auto pb-1" style=${{scrollbarWidth:"none"}}>${DATA.sources.map(s=>html`<button key=${s} onClick=${()=>togSrc(s)} className="px-3 py-1.5 rounded-full text-xs font-semibold" style=${{background:actSrc.has(s)?DATA.sourceColors[s]:"transparent",color:actSrc.has(s)?"#fff":DATA.sourceColors[s],border:"2px solid "+DATA.sourceColors[s],opacity:actSrc.has(s)?1:0.6}}>${s}</button>`)}</div></div>
+<div className=${"px-4 pb-4 "+an}><div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+<div className="flex items-center justify-between mb-3"><h2 className="text-sm font-bold text-gray-900">CA par source</h2><span className="text-xs text-gray-400">${fil.length>60?"Par semaine":"Par jour"}</span></div>
+<${ResponsiveContainer} width="100%" height=${220}><${BarChart} data=${cData} barCategoryGap="15%">
+<${XAxis} dataKey="date" tick=${{fontSize:10,fill:"#94a3b8"}} tickFormatter=${fmtD} interval=${Math.max(0,Math.floor(cData.length/8))} axisLine=${false} tickLine=${false}/>
+<${YAxis} tick=${{fontSize:10,fill:"#94a3b8"}} tickFormatter=${v=>Math.round(v/1000)+"k"} axisLine=${false} tickLine=${false} width=${35}/>
+<${Tooltip} contentStyle=${{background:"#1e293b",border:"none",borderRadius:12,fontSize:11,color:"#fff"}}/>
+${aS.map((s,i)=>html`<${Bar} key=${s} dataKey=${s} stackId="ca" fill=${DATA.sourceColors[s]} radius=${i===aS.length-1?[4,4,0,0]:[0,0,0,0]}/>`)}
+</${BarChart}></${ResponsiveContainer}></div></div>
+<div className=${"px-4 pb-4 "+an}><div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+<h2 className="text-sm font-bold text-gray-900 mb-3">Répartition par source</h2>
+<div className="space-y-3">${sBD.map(s=>html`<div key=${s.name}><div className="flex items-center justify-between mb-1"><div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style=${{background:s.color}}/><span className="text-xs font-semibold text-gray-700">${s.name}</span></div><div className="flex items-center gap-2"><span className="text-xs font-bold text-gray-900">${fmt(s.value)}€</span><span className="text-xs text-gray-400 w-10 text-right">${s.pct.toFixed(0)}%</span></div></div><div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style=${{width:(loaded?s.pct:0)+"%",background:"linear-gradient(90deg,"+s.color+","+s.color+"cc)",transition:"width 1s ease-out"}}/></div></div>`)}</div></div></div>
+<div className=${"px-4 pb-4 "+an}><div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+<h2 className="text-sm font-bold text-gray-900 mb-3">Comparatif mensuel</h2>
+<${ResponsiveContainer} width="100%" height=${200}><${BarChart} data=${mCo} barCategoryGap="15%">
+<${XAxis} dataKey="month" tick=${{fontSize:10,fill:"#94a3b8"}} tickFormatter=${v=>["","Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"][parseInt(v.split("-")[1])]} axisLine=${false} tickLine=${false}/>
+<${YAxis} tick=${{fontSize:10,fill:"#94a3b8"}} tickFormatter=${v=>Math.round(v/1000)+"k"} axisLine=${false} tickLine=${false} width=${35}/>
+<${Tooltip} formatter=${(v,n)=>[fmt(showHT?v/1.2:v)+"€",n]} labelFormatter=${fmtMo} contentStyle=${{borderRadius:12,border:"none",boxShadow:"0 4px 12px rgba(0,0,0,0.15)",fontSize:12}}/>
+${aS.map((s,i)=>html`<${Bar} key=${s} dataKey=${s} stackId="m" fill=${DATA.sourceColors[s]} radius=${i===aS.length-1?[4,4,0,0]:[0,0,0,0]}/>`)}
+</${BarChart}></${ResponsiveContainer}></div></div>
+<div className=${"px-4 pb-4 "+an}><div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+<h2 className="text-sm font-bold text-gray-900 mb-1">Météo & CA Lavage</h2><p className="text-xs text-gray-400 mb-3">Corrélation température / CA lavage auto</p>
+<${ResponsiveContainer} width="100%" height=${180}><${ComposedChart} data=${fil.length>60?fil.filter((_,i)=>i%3===0):fil}>
+<${XAxis} dataKey="date" tick=${{fontSize:9,fill:"#94a3b8"}} tickFormatter=${fmtD} interval=${Math.max(0,Math.floor((fil.length>60?fil.length/3:fil.length)/6))} axisLine=${false} tickLine=${false}/>
+<${YAxis} yAxisId="ca" tick=${{fontSize:9,fill:"#94a3b8"}} axisLine=${false} tickLine=${false} width=${30}/>
+<${YAxis} yAxisId="temp" orientation="right" tick=${{fontSize:9,fill:"#94a3b8"}} axisLine=${false} tickLine=${false} width=${25} tickFormatter=${v=>v+"°"}/>
+<${Area} yAxisId="ca" dataKey="sources.Lavage Auto" name="CA Lavage" fill="#0ea5e920" stroke="#0ea5e9" strokeWidth=${2} dot=${false}/>
+<${Line} yAxisId="temp" dataKey="meteo.temp_max" name="Temp. max" stroke="#f59e0b" strokeWidth=${1.5} dot=${false} strokeDasharray="4 2"/>
+</${ComposedChart}></${ResponsiveContainer}></div></div>
+<div className=${"px-4 pb-8 "+an}><div className="text-center"><p className="text-xs text-gray-300">Dernière mise à jour : 23 mars 2026, 06:15</p><p className="text-xs text-gray-300 mt-1">Propulsé par <span className="font-semibold text-gray-400">POWOP.tech</span></p></div></div>
+</div>`}</div>`;}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(Dashboard));
 </script>
 </body>
 </html>
